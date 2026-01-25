@@ -5,7 +5,7 @@ import java.util.Observable;
 
 
 /** The state of a game of 2048.
- *  @author TODO: YOUR NAME HERE
+ *  @author jeremy0519
  */
 public class Model extends Observable {
     /** Current contents of the board. */
@@ -110,9 +110,16 @@ public class Model extends Observable {
         boolean changed;
         changed = false;
 
-        // TODO: Modify this.board (and perhaps this.score) to account
+        // Modify this.board (and perhaps this.score) to account
         // for the tilt to the Side SIDE. If the board changed, set the
         // changed local variable to true.
+        board.setViewingPerspective(side);
+        for (int i = 0; i < board.size(); i++) {
+            if (processColumn(i)) {
+                changed = true;
+            }
+        }
+        board.setViewingPerspective(Side.NORTH);
 
         checkGameOver();
         if (changed) {
@@ -120,6 +127,80 @@ public class Model extends Observable {
         }
         return changed;
     }
+
+    /**
+     * 在处理tilt(Side.NORTH)的过程中，处理一个column的helper method
+     * 返回gui是否变化
+     */
+    private boolean processColumn(int col) {
+        boolean changed = false;
+        boolean isMerged3 = false; // row3的方块是不是被merge过的
+        boolean isMerged2 = false; // row2的方块是不是被merge过的
+
+        // 第一层row3不需要处理
+        // 处理第二层row2
+        Tile t = board.tile(col, 2);
+        if (t != null) {
+            if (board.tile(col, 3) == null) { // 上面没方块，可以move
+                board.move(col, 3, t);
+                changed = true;
+            } else if (board.tile(col, 3).value() == t.value()) { // 可以和上面方块merge
+                board.move(col, 3, t);
+                score += board.tile(col, 3).value();
+                isMerged3 = true;
+                changed = true;
+            }
+        }
+        // 处理第三层row1
+        t = board.tile(col, 1);
+        if (t != null) {
+            if (board.tile(col, 2) == null) { // row2没方块，至少可以动一格
+                if (board.tile(col, 3) == null) { // row3没方块，动两格
+                    board.move(col, 3, t);
+                } else if (board.tile(col, 3).value() == t.value() && !isMerged3) { // 和row3方块合并，动两格
+                    board.move(col, 3, t);
+                    score += board.tile(col, 3).value();
+                    isMerged3 = true;
+                } else { // 只能动一格
+                    board.move(col, 2, t);
+                }
+                changed = true;
+            } else if (board.tile(col, 2).value() == t.value()) { // 和row2方块merge，动一格
+                board.move(col, 2, t);
+                score += board.tile(col, 2).value();
+                isMerged2 = true;
+                changed = true;
+            }
+        }
+        // 处理第四层row0
+        t = board.tile(col, 0);
+        if (t != null) {
+            if (board.tile(col, 1) == null) { // row1没方块，至少可以动一格
+                if (board.tile(col, 2) == null) { // row2没方块，至少可以动两格
+                    if (board.tile(col, 3) == null) { //row3没方块，动三格
+                        board.move(col, 3, t);
+                    } else if (board.tile(col, 3).value() == t.value() && !isMerged3) { // 和row3方块合并，动三格
+                        board.move(col, 3, t);
+                        score += board.tile(col, 3).value();
+                    } else { // 只能动两格
+                        board.move(col, 2, t);
+                    }
+                } else if (board.tile(col, 2).value() == t.value() && !isMerged2) { // 和row2方块合并，动两格
+                    board.move(col, 2, t);
+                    score += board.tile(col, 2).value();
+                } else { // 只能动一格
+                    board.move(col, 1, t);
+                }
+                changed = true;
+            } else if (board.tile(col, 1).value() == t.value()) { // 和row1方块merge，动一格
+                board.move(col, 1, t);
+                score += board.tile(col, 1).value();
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
 
     /** Checks if the game is over and sets the gameOver variable
      *  appropriately.
@@ -137,7 +218,14 @@ public class Model extends Observable {
      *  Empty spaces are stored as null.
      * */
     public static boolean emptySpaceExists(Board b) {
-        // TODO: Fill in this function.
+        // Fill in this function.
+        for (int row = 0; row < b.size(); row++) {
+            for (int column = 0; column < b.size(); column++) {
+                if (b.tile(column, row) == null) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
@@ -147,7 +235,14 @@ public class Model extends Observable {
      * given a Tile object t, we get its value with t.value().
      */
     public static boolean maxTileExists(Board b) {
-        // TODO: Fill in this function.
+        // Fill in this function.
+        for (int row = 0; row < b.size(); row++) {
+            for (int column = 0; column < b.size(); column++) {
+                if (b.tile(column, row) != null && b.tile(column, row).value() == MAX_PIECE) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
@@ -158,7 +253,29 @@ public class Model extends Observable {
      * 2. There are two adjacent tiles with the same value.
      */
     public static boolean atLeastOneMoveExists(Board b) {
-        // TODO: Fill in this function.
+        // Fill in this function.
+        if (emptySpaceExists(b)) {
+            return true;
+        }
+
+        // 检查横向相邻是否有相等
+        for (int row = 0; row < b.size(); row++) {
+            for (int column = 0; column < b.size() - 1; column++) {
+                if (b.tile(column, row) != null && b.tile(column + 1, row) != null
+                        && b.tile(column, row).value() == b.tile(column + 1, row).value()) {
+                    return true;
+                }
+            }
+        }
+        // 检查纵向相邻是否有相等
+        for (int row = 0; row < b.size() - 1; row++) {
+            for (int column = 0; column < b.size(); column++) {
+                if (b.tile(column, row) != null && b.tile(column, row + 1) != null
+                        && b.tile(column, row).value() == b.tile(column, row + 1).value()) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
